@@ -1,144 +1,315 @@
-# Kimodo on macOS
+# Kimodo on Apple Silicon macOS
 
-Apple Silicon Mac에서 Kimodo SOMA77 text-to-motion을 MPS 또는 CPU로
-실행하고, 생성한 모션을 RIM v6에서 바로 불러오기 위한 재현 가능한
-wrapper 저장소다. 모션과 full/summary prompt, 생성 설정, runtime
-provenance를 하나의 pickle-free NPZ에 함께 저장한다.
+Run Kimodo SOMA77 text-to-motion generation locally on an Apple Silicon Mac,
+save each motion and its complete prompt metadata in one portable NPZ file,
+and load the result directly in NumPy or RIM v6.
 
-이 저장소의 표준 환경 관리자는 **Conda**다. `uv`, `venv`, Poetry는
-사용하지 않는다.
+This repository uses **Conda only**. It does not use uv, venv, or Poetry.
 
-## 빠른 설치
+## What this repository provides
 
-준비물은 Apple Silicon Mac, Git, Conda, 약 25GB 이상의 여유 공간이다.
-Conda가 없다면 Apple Silicon용
-[Miniforge](https://github.com/conda-forge/miniforge)를 먼저 설치한다.
-Kimodo checkpoint와 Llama 3 text encoder를 받으려면 Hugging Face 계정과
-각 모델의 사용 조건 동의가 필요할 수 있다.
+- A pinned Kimodo fork with Apple Metal/MPS support.
+- A repeatable Conda installation script.
+- One command for MPS or CPU text-to-motion generation.
+- Atomic, pickle-free metadata embedding in the generated NPZ.
+- Strict validation of SOMA77 arrays and generation metadata.
+- Three checked-in, five-second example motions.
+- A safe copy command and a Python loading example for RIM v6.
+
+The optional native motion-correction extension is not installed by default.
+Generation uses Kimodo's `--no-postprocess` option. The text encoder and core
+diffusion motion generator work on both MPS and CPU.
+
+## Requirements
+
+- An Apple Silicon Mac.
+- macOS with Command Line Tools and Git.
+- Conda. Miniforge is recommended.
+- At least 25 GB of free disk space for the environment, text encoder, and
+  Kimodo checkpoint.
+- A Hugging Face account. You may need to accept the model terms for
+  [Meta Llama 3 8B Instruct](https://huggingface.co/meta-llama/Meta-Llama-3-8B-Instruct)
+  before the first download.
+
+## Install from a fresh Mac
+
+If Conda is already available, skip the first block.
+
+### 1. Install Miniforge with Homebrew
+
+```bash
+brew install --cask miniforge
+/opt/homebrew/Caskroom/miniforge/base/bin/conda init zsh
+exec zsh
+```
+
+Confirm that Conda is available:
+
+```bash
+conda --version
+```
+
+### 2. Clone and install Kimodo
+
+Copy and paste the complete block:
 
 ```bash
 git clone --recurse-submodules https://github.com/sjchoi86/kimodo_macos.git
 cd kimodo_macos
 ./setup_macos.sh
-conda run -n kimodo-macos hf auth login
 ```
 
-`setup_macos.sh`는 다음 작업을 수행한다.
+The setup script:
 
-1. 고정된 MPS 지원 Kimodo submodule을 내려받는다.
-2. `environment.yml`로 `kimodo-macos` Conda 환경을 만든다.
-3. 검증된 PyTorch와 Kimodo를 설치한다.
-4. PyTorch의 MPS 사용 가능 여부를 출력한다.
+1. initializes the pinned Kimodo submodule if necessary;
+2. creates or updates the `kimodo-macos` Conda environment from
+   `environment.yml`;
+3. installs PyTorch 2.13.0 and the pinned Kimodo package; and
+4. prints the installed PyTorch version and MPS availability.
 
-선택적인 native motion correction은 Apple Silicon 기본 설치에서 제외한다.
-이 저장소의 생성 명령도 `--no-postprocess`를 사용한다. Kimodo text
-encoder와 diffusion motion generation 자체는 MPS와 CPU에서 모두 동작한다.
+A successful final line looks like this:
 
-## 첫 모션 만들기
+```text
+torch:[2.13.0] mps:[True]
+```
 
-최초 실행은 모델을 내려받아야 하므로 online mode를 명시한다.
+### 3. Authenticate with Hugging Face once
+
+```bash
+conda run --no-capture-output -n kimodo-macos hf auth login
+```
+
+Paste a Hugging Face access token when prompted. The token is stored by the
+Hugging Face client, not in this repository or in a generated motion file.
+
+## Generate a motion
+
+The first run must be online because it downloads the checkpoint and text
+encoder. Copy and paste this example:
 
 ```bash
 HF_HUB_OFFLINE=0 ./run_motion.sh \
     mps \
-    "A person walks forward, turns to the right, and stops upright" \
+    "A person starts upright, takes two small steps to the right while raising both arms outward to shoulder height, returns to the center, and finishes upright with arms relaxed" \
     5.0 \
     100 \
-    walk_turn_stop_5s \
-    "Walk, turn, and stop" \
+    my_side_steps_5s \
+    "Side steps with arm raises" \
     7
 ```
 
-인자는 다음 순서다.
+The positional arguments are:
 
 ```text
-backend full_prompt duration_sec diffusion_steps output_name summary_prompt seed
+backend full_prompt duration_seconds diffusion_steps output_name summary_prompt seed
 ```
 
-backend는 `mps` 또는 `cpu`다. 인자를 생략하면 MPS, 3초, 100 steps,
-seed 7의 기본 예제를 생성한다.
+| Argument | Meaning | Example |
+| --- | --- | --- |
+| `backend` | `mps` or `cpu` | `mps` |
+| `full_prompt` | Exact text sent to Kimodo | `"A person walks forward..."` |
+| `duration_seconds` | Requested motion length | `5.0` |
+| `diffusion_steps` | Number of denoising steps | `100` |
+| `output_name` | Output filename without `.npz` | `my_motion_5s` |
+| `summary_prompt` | Short human-readable label | `"Walk and stop"` |
+| `seed` | Generation seed | `7` |
+
+To use CPU, change only the first argument:
 
 ```bash
-./run_motion.sh mps
-./run_motion.sh cpu
+HF_HUB_OFFLINE=0 ./run_motion.sh \
+    cpu \
+    "A person marches in place with natural opposite arm swings and finishes standing still" \
+    5.0 \
+    100 \
+    my_march_5s \
+    "March in place" \
+    7
 ```
 
-모델을 한 번 모두 받은 다음 네트워크 없이 실행하려면 다음처럼 한다.
+After all models have been downloaded, offline generation is available:
 
 ```bash
-HF_HUB_OFFLINE=1 ./run_motion.sh mps \
-    "A person takes two side steps while opening both arms" \
-    5.0 100 my_side_steps "Side steps with open arms" 7
+HF_HUB_OFFLINE=1 ./run_motion.sh \
+    mps \
+    "A person walks forward for four steps and stops upright" \
+    5.0 \
+    100 \
+    walk_and_stop_5s \
+    "Walk and stop" \
+    7
 ```
 
-공식 Meta Llama 저장소 대신 호환 mirror를 사용하는 환경이라면 실제 base
-model 식별자를 metadata에 남기도록 `TEXT_ENCODER_BASE`도 함께 지정한다.
+The script refuses to overwrite an existing output. Choose a new
+`output_name` if the destination already exists.
 
-## 파일이 저장되는 위치
+## Where files are stored
 
-생성 결과는 항상 이 저장소의 다음 위치에 저장된다.
+Generated motion:
 
 ```text
 outputs/<output_name>.npz
 ```
 
-예를 들어 `output_name`이 `walk_turn_stop_5s`이면 실제 경로는
-`outputs/walk_turn_stop_5s.npz`다. 같은 이름의 파일이 이미 있으면
-스크립트가 중단하며 기존 결과를 덮어쓰지 않는다.
+For the first example above, the exact path is:
 
-Kimodo가 numeric motion arrays를 쓴 직후 `embed_motion_metadata.py`가 같은
-NPZ를 원자적으로 다시 작성한다. 따라서 sidecar JSON 없이 파일 하나만
-옮겨도 다음 내용이 모두 유지된다.
+```text
+outputs/my_side_steps_5s.npz
+```
 
-- `posed_joints (T,77,3)`와 global/local rotations
-- `foot_contacts`, scalar `fps`, frame count와 duration
-- exact full prompt와 짧은 summary prompt
-- model, MPS/CPU backend, diffusion steps, seed와 sampling 설정
-- generator repository/revision, 생성 UTC 시간, Python/PyTorch/platform 정보
-- text encoder base와 adapter 식별자
+Downloaded model data is kept separately:
 
-모든 문자열은 NumPy Unicode dtype이다. archive는 항상
-`np.load(path,allow_pickle=False)`로 읽을 수 있다. 생성이 끝나면
-`validate_motion.py`가 필수 key, SOMA77 형상, 유한값, prompt metadata와
-시간 일관성을 자동 검사한다.
+```text
+hf-cache/       Hugging Face text-encoder and model cache
+checkpoints/    Optional local Kimodo checkpoint directory or links
+outputs/        Generated and example motion NPZ files
+```
 
-Hugging Face cache와 checkpoint는 각각 `hf-cache/`, `checkpoints/` 아래에
-두며 Git에는 포함하지 않는다. 새로 생성한 NPZ도 기본적으로 무시된다.
-다만 아래의 검증된 5초 예제 3개는 clone 직후 확인할 수 있도록 저장소에
-포함한다.
+`hf-cache/` and `checkpoints/` are excluded from Git. New files under
+`outputs/` are also ignored by default so large experiments are not committed
+accidentally. Three small, validated example archives are deliberately tracked:
 
 - `outputs/side_steps_arms_open_5s.npz`
 - `outputs/march_arm_swing_5s.npz`
 - `outputs/forward_back_arm_reach_5s.npz`
 
-## RIM v6에서 사용하기
+## What is stored in each NPZ
 
-`kimodo_macos`와 `rim_v6`가 같은 상위 폴더에 있다면 다음 명령으로 모든
-NPZ를 RIM v6의 motion source 폴더에 복사할 수 있다.
+`run_motion.sh` first asks Kimodo to write its numeric motion arrays. It then
+runs `embed_motion_metadata.py`, which atomically rewrites the same NPZ with a
+complete schema-v1 generation record. No sidecar JSON file is required.
+
+Important motion arrays include:
+
+| Key | Meaning | SOMA77 shape |
+| --- | --- | --- |
+| `posed_joints` | Global joint positions | `(T,77,3)` |
+| `global_rot_mats` | Global joint rotations | `(T,77,3,3)` |
+| `local_rot_mats` | Parent-relative joint rotations | `(T,77,3,3)` |
+| `foot_contacts` | Six SOMA foot contact channels | `(T,6)` |
+| `root_positions` | Root trajectory | `(T,3)` |
+| `smooth_root_pos` | Smoothed root representation | model-dependent |
+| `global_root_heading` | Root heading representation | model-dependent |
+| `fps` | Scalar frames per second | scalar |
+
+The same archive also contains:
+
+- `text_prompt_full` and `text_prompt_summary`;
+- model name, device, requested and actual duration, and frame count;
+- diffusion steps, seed, sample index, transition frames, and CFG mode;
+- postprocessing, constraint, offline, and MPS-fallback flags;
+- generation UTC timestamp and exact generator repository revision;
+- Python, PyTorch, platform, and text-encoder identifiers; and
+- `metadata_schema_version`.
+
+All strings use NumPy Unicode dtypes. No Python objects or dictionaries are
+stored, so every file can be opened safely with `allow_pickle=False`.
+
+## Validate a generated motion
+
+`run_motion.sh` validates each output automatically. You can repeat validation
+at any time:
 
 ```bash
-./copy_to_rim_v6.sh ../rim_v6
+conda run -n kimodo-macos python validate_motion.py \
+    outputs/my_side_steps_5s.npz
 ```
 
-목적지는 다음과 같다.
+The validator checks required keys, object-free dtypes, SOMA77 shapes, finite
+numeric values, non-empty prompts, positive FPS, and frame/FPS/duration
+consistency.
 
-```text
-rim_v6/notebooks/15_motion_retargeting/motion_data/
+Validate every local motion with this copy-paste command:
+
+```bash
+for motion_path in outputs/*.npz; do
+    conda run -n kimodo-macos python validate_motion.py "$motion_path"
+done
 ```
 
-파일 이름 앞에는 source와 model을 구분하는
-`kimodo_soma_rp_v1_` prefix가 자동으로 붙는다. 목적지에 내용이 다른
-동명 파일이 있으면 덮어쓰지 않고 중단한다.
+## Load a motion with NumPy
 
-RIM v6 Python API에서 원본 `outputs/` 경로를 직접 읽는 것도 가능하다.
+This example needs only NumPy and does not depend on RIM v6:
 
 ```python
 from pathlib import Path
 
-from rim_v6.motion import Soma77Motion,Soma77Skeleton
-from rim_v6.utility import rpy2r
+import numpy as np
 
-motion_path = Path("../kimodo_macos/outputs/side_steps_arms_open_5s.npz")
+motion_path = Path("outputs/side_steps_arms_open_5s.npz")
+
+with np.load(motion_path,allow_pickle=False) as archive:
+    positions = np.asarray(archive["posed_joints"],dtype=np.float64)
+    rotations = np.asarray(archive["global_rot_mats"],dtype=np.float64)
+    contacts = np.asarray(archive["foot_contacts"],dtype=bool)
+    fps = float(np.asarray(archive["fps"]).reshape(-1)[0])
+    full_prompt = str(
+        np.asarray(archive["text_prompt_full"]).reshape(-1)[0]
+    )
+    summary_prompt = str(
+        np.asarray(archive["text_prompt_summary"]).reshape(-1)[0]
+    )
+
+frame_count = positions.shape[0]
+duration_sec = frame_count/fps
+
+print("positions:",positions.shape)
+print("rotations:",rotations.shape)
+print("contacts:",contacts.shape)
+print("duration:",duration_sec)
+print("summary prompt:",summary_prompt)
+print("full prompt:",full_prompt)
+```
+
+Run the example directly from the terminal:
+
+```bash
+conda run --no-capture-output -n kimodo-macos python - <<'PY'
+from pathlib import Path
+import numpy as np
+
+path = Path("outputs/side_steps_arms_open_5s.npz")
+with np.load(path,allow_pickle=False) as archive:
+    positions = np.asarray(archive["posed_joints"])
+    rotations = np.asarray(archive["global_rot_mats"])
+    contacts = np.asarray(archive["foot_contacts"])
+    fps = float(np.asarray(archive["fps"]).reshape(-1)[0])
+    prompt = str(np.asarray(archive["text_prompt_full"]).reshape(-1)[0])
+
+print("positions:",positions.shape)
+print("rotations:",rotations.shape)
+print("contacts:",contacts.shape)
+print("fps:",fps)
+print("full prompt:",prompt)
+PY
+```
+
+## Use a motion from RIM v6
+
+There are two supported workflows.
+
+### Option A: load the original file directly
+
+Assume these two repositories are siblings:
+
+```text
+workspace/
+|-- kimodo_macos/
+`-- rim_v6/
+```
+
+Run this Python code from the `rim_v6` repository root with its supported
+environment:
+
+```python
+from pathlib import Path
+
+from rim_v6.kinematics import rpy2r
+from rim_v6.motion import Soma77Motion,Soma77Skeleton
+
+motion_path = Path(
+    "../kimodo_macos/outputs/side_steps_arms_open_5s.npz"
+)
 motion = Soma77Motion.from_kimodo_npz(
     motion_path,
     skeleton=Soma77Skeleton(),
@@ -146,48 +317,151 @@ motion = Soma77Motion.from_kimodo_npz(
     fps_default=30.0,
 )
 
-print(motion.generation.prompt_full)
-print(motion.frame_count,motion.fps,motion.duration_sec)
+print(motion.frame_count)
+print(motion.fps)
+print(motion.duration_sec)
+print(motion.prompt_summary)
+print(motion.prompt_full)
 ```
 
-15번 notebook에서 복사한 모션을 선택하려면 `MOTION_SPECS`에 다음처럼
-등록한다.
+`R_source_to_target` explicitly converts the Kimodo source frame to the
+MuJoCo Z-up frame used by the RIM v6 motion-retargeting notebooks.
+
+### Option B: copy motions into the RIM v6 notebook data folder
+
+From the `kimodo_macos` repository root:
+
+```bash
+./copy_to_rim_v6.sh ../rim_v6
+```
+
+The destination is:
+
+```text
+rim_v6/notebooks/15_motion_retargeting/motion_data/
+```
+
+The script adds a `kimodo_soma_rp_v1_` prefix. For example:
+
+```text
+outputs/my_side_steps_5s.npz
+```
+
+becomes:
+
+```text
+rim_v6/notebooks/15_motion_retargeting/motion_data/
+kimodo_soma_rp_v1_my_side_steps_5s.npz
+```
+
+The copy is conservative:
+
+- a missing destination is copied;
+- an existing byte-identical destination is reported as current; and
+- an existing destination with different contents stops the script without
+  overwriting anything.
+
+Add the copied motion to a notebook's `MOTION_SPECS`:
 
 ```python
-"walk_turn_stop_5s":{
-    "display_name":"Walk, turn, and stop",
-    "path":"motion_data/kimodo_soma_rp_v1_walk_turn_stop_5s.npz",
-    "fps":30.0,
-},
+MOTION_SPECS = {
+    "my_side_steps_5s":{
+        "display_name":"Side steps with arm raises",
+        "path":"motion_data/kimodo_soma_rp_v1_my_side_steps_5s.npz",
+        "fps":30.0,
+    },
+}
 ```
 
-RIM v6의 strict loader는 prompt-rich metadata schema를 기본으로 요구한다.
-이 저장소의 `run_motion.sh`로 만든 파일은 그 계약을 그대로 만족한다.
+The strict RIM v6 loader requires prompt-rich schema-v1 metadata by default.
+Every file created by this repository's `run_motion.sh` satisfies that
+contract.
 
-## 검증된 환경과 성능
+## Reproducibility notes
 
-- Apple Silicon M4 Max, macOS 26.5
-- Conda Python 3.10.20
-- PyTorch 2.13.0
-- Kimodo MPS fork commit `598fee96ca39bff9403db652d756d9046f089fc3`
-- Kimodo checkpoint `Kimodo-SOMA-RP-v1`
+- MPS and CPU are not bitwise deterministic relative to each other, even with
+  the same prompt and seed. Record the backend as part of an experiment.
+- The exact full prompt is stored in the NPZ; the summary prompt is only a
+  concise display label.
+- The generator revision, backend, seed, sampling configuration, and runtime
+  versions are stored with the motion.
+- An existing output is never overwritten.
+- Detailed measurements are available in [RESULTS.md](RESULTS.md).
 
-5초, 150-frame, 100-step 비교에서는 전체 실행 시간이 MPS 14.48초,
-CPU 33.41초였고 diffusion 구간은 MPS가 약 4.2배 빨랐다. 세부 측정과
-한계는 [RESULTS.md](RESULTS.md)에 기록했다.
+## Troubleshooting
 
-MPS와 CPU는 같은 seed에서도 bitwise-identical motion을 보장하지 않는다.
-생성 결과를 재현·비교할 때는 prompt와 seed뿐 아니라 backend도 함께
-확인해야 한다.
+### `conda: command not found`
 
-## 라이선스와 원본
+Install Miniforge and initialize zsh:
 
-`kimodo/`는 Apache-2.0 Kimodo MPS fork를 고정한 Git submodule이다. 모델과
-text encoder에는 각 배포처의 별도 사용 조건이 적용된다. 공개 결과를
-재배포하거나 상업적으로 사용할 때는 checkpoint 및 Llama 라이선스를
-직접 확인해야 한다.
+```bash
+brew install --cask miniforge
+/opt/homebrew/Caskroom/miniforge/base/bin/conda init zsh
+exec zsh
+```
+
+### The Kimodo submodule is empty
+
+```bash
+git submodule update --init --recursive
+```
+
+`setup_macos.sh` also runs this command automatically.
+
+### Hugging Face returns `401`, `403`, or a gated-model error
+
+1. Open the Meta Llama model page and accept its terms.
+2. Create a Hugging Face read token.
+3. Log in again:
+
+```bash
+conda run --no-capture-output -n kimodo-macos hf auth login
+```
+
+### Offline mode reports a missing model
+
+Run once with downloads enabled:
+
+```bash
+HF_HUB_OFFLINE=0 ./run_motion.sh mps
+```
+
+### The output already exists
+
+Choose a different `output_name`. The repository intentionally never
+overwrites a motion archive.
+
+### MPS is unavailable
+
+Check the environment directly:
+
+```bash
+conda run -n kimodo-macos python -c \
+    'import torch; print(torch.__version__); print(torch.backends.mps.is_available())'
+```
+
+## Validated baseline
+
+- Apple Silicon M4 Max, 16 CPU cores, 128 GB unified memory.
+- macOS 26.5.
+- Conda Python 3.10.
+- PyTorch 2.13.0 with MPS available.
+- Kimodo MPS fork commit
+  `598fee96ca39bff9403db652d756d9046f089fc3`.
+- Kimodo checkpoint `Kimodo-SOMA-RP-v1`.
+
+For a five-second, 150-frame, 100-step motion, measured total runtime was
+14.48 seconds on MPS and 33.41 seconds on CPU. See [RESULTS.md](RESULTS.md) for
+the complete measurements and limitations.
+
+## License and upstream projects
+
+The `kimodo/` directory is a pinned Git submodule of an Apache-2.0 Kimodo MPS
+fork. Model checkpoints, the text encoder, and datasets have separate license
+terms. Review those terms before redistributing outputs or using them
+commercially.
 
 - [Official Kimodo repository](https://github.com/nv-tlabs/kimodo)
-- [Pinned MPS fork](https://github.com/atticus-lv/kimodo/commit/598fee96ca39bff9403db652d756d9046f089fc3)
-- [Official Kimodo installation](https://github.com/nv-tlabs/kimodo/blob/main/docs/source/getting_started/installation.md)
-- [Official NPZ format](https://github.com/nv-tlabs/kimodo/blob/main/docs/source/user_guide/output_formats.md)
+- [Pinned MPS fork commit](https://github.com/atticus-lv/kimodo/commit/598fee96ca39bff9403db652d756d9046f089fc3)
+- [Official Kimodo installation guide](https://github.com/nv-tlabs/kimodo/blob/main/docs/source/getting_started/installation.md)
+- [Official Kimodo NPZ format](https://github.com/nv-tlabs/kimodo/blob/main/docs/source/user_guide/output_formats.md)
