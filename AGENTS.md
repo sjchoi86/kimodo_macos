@@ -11,3 +11,9 @@
   the same pickle-free NPZ file.
 - Keep the Kimodo source pinned through the `kimodo/` Git submodule. Do not
   rewrite upstream history in this wrapper repository.
+- For published README media, treat the source display aspect ratio reported by
+  `ffprobe` as authoritative. Do not infer it from the coded width and height;
+  encode GIF and MP4 derivatives with square pixels while preserving that DAR.
+- Use a new asset path when replacing published media so GitHub cannot serve a
+  stale branch-image cache. After pushing, verify both the natural dimensions
+  and rendered dimensions on the public README page.
