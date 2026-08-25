@@ -23,15 +23,55 @@ diffusion motion generator work on both MPS and CPU.
 ## Requirements
 
 - An Apple Silicon Mac.
-- macOS with Command Line Tools and Git.
+- macOS with Command Line Tools and Git. Run `xcode-select --install` if Git is
+  not already available.
 - Conda. Miniforge is recommended.
+- 32 GB or more of unified memory is recommended for local text encoding.
 - At least 25 GB of free disk space for the environment, text encoder, and
   Kimodo checkpoint.
-- A Hugging Face account. You may need to accept the model terms for
+- A Hugging Face account with a read token. Accept the model terms for
   [Meta Llama 3 8B Instruct](https://huggingface.co/meta-llama/Meta-Llama-3-8B-Instruct)
   before the first download.
 
-## Install from a fresh Mac
+## Quick start for a new user
+
+If Conda is already installed, this is the complete flow from clone to the
+first generated motion. The Hugging Face login command is interactive and asks
+you to paste a read token.
+
+```bash
+git clone --recurse-submodules https://github.com/sjchoi86/kimodo_macos.git
+cd kimodo_macos
+
+./setup_macos.sh
+
+conda run --no-capture-output -n kimodo-macos hf auth login
+conda run --no-capture-output -n kimodo-macos hf auth whoami
+
+HF_HUB_OFFLINE=0 ./run_motion.sh \
+    mps \
+    "A person walks forward for four steps and stops upright with both arms relaxed" \
+    5.0 \
+    100 \
+    first_walk_5s \
+    "Walk forward and stop" \
+    7
+
+conda run -n kimodo-macos python validate_motion.py \
+    outputs/first_walk_5s.npz
+```
+
+The first generation downloads the text encoder and Kimodo checkpoint and can
+take substantially longer than later runs. The final motion is saved at:
+
+```text
+outputs/first_walk_5s.npz
+```
+
+Continue with the detailed instructions below if Conda is not installed or if
+you want to understand each step.
+
+## Detailed installation from a fresh Mac
 
 If Conda is already available, skip the first block.
 
@@ -47,7 +87,10 @@ Confirm that Conda is available:
 
 ```bash
 conda --version
+uname -m
 ```
+
+`uname -m` should print `arm64` on a supported Apple Silicon Mac.
 
 ### 2. Clone and install Kimodo
 
@@ -73,19 +116,55 @@ A successful final line looks like this:
 torch:[2.13.0] mps:[True]
 ```
 
-### 3. Authenticate with Hugging Face once
+`setup_macos.sh` installs Python packages only. It does not download the large
+text encoder or Kimodo checkpoint; those are downloaded during the first
+generation.
+
+### 3. Accept the model terms and create a token
+
+Before the first download:
+
+1. sign in to [Hugging Face](https://huggingface.co/);
+2. open the
+   [Meta Llama 3 8B Instruct model page](https://huggingface.co/meta-llama/Meta-Llama-3-8B-Instruct)
+   and accept its terms if requested; and
+3. create a read token in the Hugging Face access-token settings.
+
+Do not place the token in a shell script, Markdown file, generated NPZ, or Git
+configuration.
+
+### 4. Authenticate with Hugging Face once
 
 ```bash
 conda run --no-capture-output -n kimodo-macos hf auth login
+conda run --no-capture-output -n kimodo-macos hf auth whoami
 ```
 
 Paste a Hugging Face access token when prompted. The token is stored by the
-Hugging Face client, not in this repository or in a generated motion file.
+Hugging Face client in the user's standard Hugging Face configuration, not in
+this repository or in a generated motion file. `run_motion.sh` keeps only the
+downloaded model cache under `hf-cache/hub`, so the standard login remains
+available while large model files stay local to this repository.
+
+### 5. Verify the installed environment
+
+```bash
+conda run -n kimodo-macos python -c \
+    'import torch; import kimodo; print(torch.__version__); print(torch.backends.mps.is_available())'
+
+conda run -n kimodo-macos python validate_motion.py \
+    outputs/side_steps_arms_open_5s.npz
+```
+
+The first command should print PyTorch `2.13.0` and `True`. The second command
+validates a small example motion already included in the repository and does
+not download a model.
 
 ## Generate a motion
 
 The first run must be online because it downloads the checkpoint and text
-encoder. Copy and paste this example:
+encoder into `hf-cache/hub`. Copy and paste this example from the repository
+root:
 
 ```bash
 HF_HUB_OFFLINE=0 ./run_motion.sh \
