@@ -1,0 +1,3 @@
+[submodule "kimodo"]
+	path = kimodo
+	url = https://github.com/atticus-lv/kimodo.git

@@ -1,0 +1,10 @@
+.DS_Store
+__pycache__/
+.venv/
+hf-cache/
+checkpoints/
+logs/
+outputs/*.npz
+!outputs/side_steps_arms_open_5s.npz
+!outputs/march_arm_swing_5s.npz
+!outputs/forward_back_arm_reach_5s.npz
