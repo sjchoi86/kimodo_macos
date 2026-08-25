@@ -35,9 +35,9 @@ if ! conda run -n "$CONDA_ENV" python --version >/dev/null 2>&1; then
     exit 2
 fi
 
-export HF_HOME="$PROJECT_DIR/hf-cache"
+export HF_HUB_CACHE="$PROJECT_DIR/hf-cache/hub"
 if [[ -z ${HF_HUB_OFFLINE+x} ]]; then
-    if [[ -e "$PROJECT_DIR/checkpoints/$MODEL/config.yaml" && -d "$HF_HOME/hub" ]]; then
+    if [[ -e "$PROJECT_DIR/checkpoints/$MODEL/config.yaml" && -d "$HF_HUB_CACHE" ]]; then
         export HF_HUB_OFFLINE=1
     else
         export HF_HUB_OFFLINE=0
