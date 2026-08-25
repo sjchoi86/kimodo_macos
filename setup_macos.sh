@@ -32,5 +32,5 @@ conda run -n "$CONDA_ENV" python -c \
     'import torch; from kimodo.model import load_model; print("torch:[%s] mps:[%s]"%(torch.__version__,torch.backends.mps.is_available()))'
 
 print "Kimodo macOS environment is ready."
-print "Authenticate once with: conda run -n $CONDA_ENV hf auth login"
+print "Authenticate once with: conda run --no-capture-output -n $CONDA_ENV hf auth login"
 print "Then generate with:     HF_HUB_OFFLINE=0 $PROJECT_DIR/run_motion.sh mps"
