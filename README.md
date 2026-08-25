@@ -223,6 +223,6 @@ redistributing generated data or using it commercially.
 Generated Kimodo NPZ motions can be retargeted to humanoid robots and rendered
 with [RIMKit](https://github.com/tmjeong1103/RIMKit).
 
-[![Kimodo motion retargeted with RIMKit](assets/kimodo_rimkit_demo.gif)](assets/kimodo_rimkit_demo.mp4)
+[![Kimodo motion retargeted with RIMKit](assets/rimkit_demo.gif)](assets/rimkit_demo.mp4)
 
 *Click the preview to open the original video.*
