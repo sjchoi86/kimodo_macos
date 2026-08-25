@@ -217,3 +217,12 @@ redistributing generated data or using it commercially.
 
 - [Official Kimodo repository](https://github.com/nv-tlabs/kimodo)
 - [Pinned MPS fork](https://github.com/atticus-lv/kimodo)
+
+## Humanoid motion retargeting
+
+Generated Kimodo NPZ motions can be retargeted to humanoid robots and rendered
+with [RIMKit](https://github.com/tmjeong1103/RIMKit).
+
+[![Kimodo motion retargeted with RIMKit](assets/kimodo_rimkit_demo.gif)](assets/kimodo_rimkit_demo.mp4)
+
+*Click the preview to open the original video.*
