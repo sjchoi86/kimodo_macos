@@ -1,6 +1,6 @@
 # Kimodo on Apple Silicon macOS
 
-[![Kimodo SOMA77 motion generated on Apple Silicon macOS](assets/kimodo_macos_demo.gif)](assets/kimodo_macos_demo.mp4)
+[![Kimodo SOMA77 motion generated on Apple Silicon macOS](assets/kimodo_demo.gif)](assets/kimodo_demo.mp4)
 
 *Click the preview to open the original video.*
 
